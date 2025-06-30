@@ -68,21 +68,38 @@ export const assignTicket = async (req, res) => {
 // Add a comment to a ticket
 export const addComment = async (req, res) => {
   const { id } = req.params;
-  const { message } = req.body;
+  const { message, parentCommentIndex } = req.body;
+  const user = req.user.username;
 
   try {
     const ticket = await Ticket.findById(id);
-    if (!ticket) return res.status(404).json({ message: "Ticket not found" });
+    if (!ticket) {
+      return res.status(404).json({ message: "Ticket not found" });
+    }
 
-    ticket.comments.push({
-      user: req.user.username,
+    const newComment = {
+      user,
       message,
-      createdAt: new Date()
-    });
+      createdAt: new Date(),
+    };
+
+    if (typeof parentCommentIndex === "number") {
+      // 🧵 Add a reply to a specific comment
+      if (!ticket.comments[parentCommentIndex]) {
+        return res.status(400).json({ message: "Parent comment not found" });
+      }
+
+      ticket.comments[parentCommentIndex].replies.push(newComment);
+    } else {
+      // 💬 Add a top-level comment
+      ticket.comments.push({ ...newComment, replies: [] });
+    }
 
     await ticket.save();
-    res.status(200).json(ticket);
+    res.status(200).json({ message: "Comment added", ticket });
   } catch (err) {
     res.status(500).json({ message: "Failed to add comment", error: err.message });
   }
 };
+
+
