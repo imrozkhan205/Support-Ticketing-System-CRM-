@@ -22,14 +22,16 @@ export const getTickets = async (req, res) => {
   const { status, assignedTo } = req.query;
 
   const filter = {};
-  if (status) filter.status = status;
-  if (assignedTo) filter.assignedTo = assignedTo;
 
+  // Role-based visibility
   if (role === "customer") {
     filter.createdBy = username;
-  } else if (role === "support") {
-    filter.assignedTo = username;
   }
+  // support and admin see everything — no filter on `createdBy` or `assignedTo`
+
+  // Optional query filters
+  if (status) filter.status = status;
+  if (assignedTo) filter.assignedTo = assignedTo;
 
   try {
     const tickets = await Ticket.find(filter).sort({ createdAt: -1 });
@@ -38,6 +40,7 @@ export const getTickets = async (req, res) => {
     res.status(500).json({ message: "Failed to fetch tickets", error: err.message });
   }
 };
+
 
 // Update ticket status (admin/support only)
 export const updateStatus = async (req, res) => {
@@ -53,17 +56,28 @@ export const updateStatus = async (req, res) => {
 };
 
 // Assign ticket to support (admin only)
+// Assign ticket to support (admin only)
 export const assignTicket = async (req, res) => {
+  const { role } = req.user;
+
+  if (role !== "admin") {
+    return res.status(403).json({ message: "Only admin can assign tickets" });
+  }
+
   const { id } = req.params;
   const { assignedTo } = req.body;
 
   try {
     const ticket = await Ticket.findByIdAndUpdate(id, { assignedTo }, { new: true });
+    if (!ticket) {
+      return res.status(404).json({ message: "Ticket not found" });
+    }
     res.json(ticket);
   } catch (err) {
     res.status(500).json({ message: "Failed to assign ticket", error: err.message });
   }
 };
+
 
 // Add a comment to a ticket
 export const addComment = async (req, res) => {
