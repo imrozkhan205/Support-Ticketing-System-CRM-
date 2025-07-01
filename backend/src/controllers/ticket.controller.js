@@ -101,5 +101,3 @@ export const addComment = async (req, res) => {
     res.status(500).json({ message: "Failed to add comment", error: err.message });
   }
 };
-
-

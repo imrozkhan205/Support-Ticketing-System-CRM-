@@ -9,7 +9,7 @@ export const login = (req, res) => {
   if (!user) return res.status(401).json({ message: "Invalid credentials" });
 
   const token = jwt.sign({ username: user.username, role: user.role }, process.env.JWT_SECRET, {
-    expiresIn: "1h",
+    expiresIn: "7d", // Token valid for 7 days
   });
 
   res.json({ token, username: user.username, role: user.role });
