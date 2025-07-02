@@ -82,7 +82,7 @@ export const assignTicket = async (req, res) => {
 // Add a comment to a ticket
 export const addComment = async (req, res) => {
   const { id } = req.params;
-  const { message, parentCommentIndex } = req.body;
+  const { message, parentCommentPath } = req.body;
   const user = req.user.username;
 
   try {
@@ -95,18 +95,27 @@ export const addComment = async (req, res) => {
       user,
       message,
       createdAt: new Date(),
+      replies: [],
     };
 
-    if (typeof parentCommentIndex === "number") {
-      // 🧵 Add a reply to a specific comment
-      if (!ticket.comments[parentCommentIndex]) {
-        return res.status(400).json({ message: "Parent comment not found" });
+    if (Array.isArray(parentCommentPath) && parentCommentPath.length > 0) {
+      // Traverse the comment tree to find the parent
+      let current = ticket.comments;
+      for (let i = 0; i < parentCommentPath.length; i++) {
+        const index = parentCommentPath[i];
+        if (!current[index]) {
+          return res.status(400).json({ message: "Invalid comment path" });
+        }
+        if (i === parentCommentPath.length - 1) {
+          // Final level, push reply
+          current[index].replies.push(newComment);
+        } else {
+          current = current[index].replies;
+        }
       }
-
-      ticket.comments[parentCommentIndex].replies.push(newComment);
     } else {
-      // 💬 Add a top-level comment
-      ticket.comments.push({ ...newComment, replies: [] });
+      // Top-level comment
+      ticket.comments.push(newComment);
     }
 
     await ticket.save();
@@ -115,3 +124,34 @@ export const addComment = async (req, res) => {
     res.status(500).json({ message: "Failed to add comment", error: err.message });
   }
 };
+
+
+// Delete a ticket (admin only)
+export const deleteTicket = async (req, res) => {
+  const { role } = req.user;
+  const { id } = req.params;
+
+  if (role !== "admin") {
+    return res.status(403).json({ message: "Only admin can delete tickets" });
+  }
+
+  try {
+    const deletedTicket = await Ticket.findByIdAndDelete(id);
+    if (!deletedTicket) {
+      return res.status(404).json({ message: "Ticket not found" });
+    }
+    res.status(200).json({ message: "Ticket deleted successfully" });
+  } catch (err) {
+    res.status(500).json({ message: "Failed to delete ticket", error: err.message });
+  }
+};
+
+export const getTicketById = async(req, res) => {
+  try {
+    const ticket = await Ticket.findById(req.params.id);
+    if(!ticket) return res.status(404).json({message: "Ticket not found"});
+    res.json(ticket);
+  } catch (error) {
+    res.status(500).json({message: "Error fetching ticker", error: err.message})
+  }
+}

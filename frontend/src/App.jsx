@@ -1,18 +1,30 @@
-// App.jsx
-import { Route, Routes, Navigate } from 'react-router-dom'
-import { Toaster } from "react-hot-toast"
-import { useState, useEffect } from 'react'
+import { Route, Routes, Navigate, useNavigate } from 'react-router-dom';
+import toast, { Toaster } from "react-hot-toast";
+import { useState, useEffect } from 'react';
 
-import LoginPage from './components/pages/LoginPage.jsx'
-import TicketDetail from './components/pages/TicketDetail.jsx'
-import NewTicket from './components/pages/NewTicket.jsx'
-import Dashboard from './components/pages/Dashboard.jsx'
-import { axiosInstance } from './lib/axios.js'
+import LoginPage from './components/pages/LoginPage.jsx';
+import TicketDetail from './components/pages/TicketDetail.jsx';
+import NewTicket from './components/pages/NewTicket.jsx';
+import Dashboard from './components/pages/Dashboard.jsx';
+import Tickets from './components/pages/Tickets.jsx';
+import Support from './components/pages/Support.jsx';
+import Customer from './components/pages/Customer.jsx';
+import DashboardLayout from './components/layout/DashboardLayout.jsx';
 
+import { axiosInstance } from './lib/axios.js';
 
 function App() {
   const [authUser, setAuthUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    localStorage.clear();
+    delete axiosInstance.defaults.headers.common['Authorization'];
+    setAuthUser(null);
+    toast.success("Logged out successfully!");
+    navigate('/login');
+  };
 
   useEffect(() => {
     const token = localStorage.getItem("token");
@@ -27,25 +39,41 @@ function App() {
 
   if (loading) {
     return (
-      <div className='h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 text-white flex items-center justify-center'>
-        <div className="h-10 w-10 border-4 border-black rounded-full animate-spin"></div>
+      <div className='h-screen bg-slate-900 text-white flex items-center justify-center'>
+        <div className="h-10 w-10 border-4 border-white border-t-transparent rounded-full animate-spin"></div>
       </div>
     );
   }
 
   return (
-    <div className='h-screen bg-gradient-to-r from-gray-100 via-gray-50 to-gray-100 h-screen'>
-      <Routes>
-        {/* Pass setAuthUser to Dashboard */}
-        <Route path='/' element={authUser ? <Dashboard user={authUser} setAuthUser={setAuthUser} /> : <Navigate to="/login" replace />} />
-        <Route path='/login' element={!authUser ? <LoginPage setAuthUser={setAuthUser} /> : <Navigate to="/" replace />} />
-        <Route path='/ticket/:id' element={authUser ? <TicketDetail user={authUser} /> : <Navigate to="/login" replace />} />
-        <Route path='/new-ticket' element={authUser ? <NewTicket user={authUser} /> : <Navigate to="/login" replace />} />
-        <Route path='*' element={<Navigate to={authUser ? "/" : "/login"} replace />} />
-      </Routes>
+    <>
       <Toaster />
-    </div>
-  )
+      <Routes>
+        {/* Login Route */}
+        <Route
+          path='/login'
+          element={!authUser ? <LoginPage setAuthUser={setAuthUser} /> : <Navigate to="/dashboard" replace />}
+        />
+
+        {/* Protected Routes */}
+        {authUser && (
+          <Route element={<DashboardLayout user={authUser} handleLogout={handleLogout} />}>
+            <Route path='/' element={<Navigate to='/dashboard' replace />} />
+            <Route path='dashboard' element={<Dashboard user={authUser} setAuthUser={setAuthUser} />} />
+            <Route path='tickets' element={<Tickets user={authUser} setAuthUser={setAuthUser} />} />
+            <Route path='supports' element={<Support />} />
+            <Route path='customers' element={<Customer />} />
+            <Route path='ticket/:id' element={<TicketDetail user={authUser} />} />
+            <Route path='new-ticket' element={<NewTicket user={authUser} />} />
+            <Route path='*' element={<Navigate to="/dashboard" replace />} />
+          </Route>
+        )}
+
+        {/* Catch All - If not logged in */}
+        {!authUser && <Route path='*' element={<Navigate to="/login" replace />} />}
+      </Routes>
+    </>
+  );
 }
 
-export default App
+export default App;

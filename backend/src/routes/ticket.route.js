@@ -4,7 +4,9 @@ import {
   getTickets,
   updateStatus,
   assignTicket,
-  addComment
+  addComment,
+  deleteTicket,
+  getTicketById
 } from "../controllers/ticket.controller.js";
 import { verifyToken } from "../middleware/auth.middleware.js";
 
@@ -17,5 +19,7 @@ router.post("/", createTicket);
 router.put("/:id/status", updateStatus);
 router.put("/:id/assign", assignTicket);
 router.post("/:id/comments", addComment);
+router.delete('/:id', deleteTicket);
+router.get('/:id', getTicketById)
 
 export default router;

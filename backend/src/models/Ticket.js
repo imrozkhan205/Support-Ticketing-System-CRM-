@@ -1,23 +1,19 @@
 import mongoose from "mongoose";
 
-const replySchema = new mongoose.Schema({
-  user: String,
-  message: String,
-  createdAt: {
-    type: Date,
-    default: Date.now,
-  },
-}, { _id: true });
-
+// Define the base comment schema first
 const commentSchema = new mongoose.Schema({
+  _id: { type: mongoose.Schema.Types.ObjectId, default: () => new mongoose.Types.ObjectId() },
   user: String,
   message: String,
   createdAt: {
     type: Date,
     default: Date.now,
   },
-  replies: [replySchema], // ✅ replies as array of subdocuments
-}, { _id: true });
+  replies: [] // Temporarily set as empty
+}, { _id: false });
+
+// Recursively embed commentSchema inside replies
+commentSchema.add({ replies: [commentSchema] });
 
 const ticketSchema = new mongoose.Schema({
   title: String,
@@ -29,7 +25,7 @@ const ticketSchema = new mongoose.Schema({
     enum: ["Open", "In Progress", "Closed"],
     default: "Open",
   },
-  comments: [commentSchema], // ✅ structured comment schema
+  comments: [commentSchema],
 }, { timestamps: true });
 
 export default mongoose.model("Ticket", ticketSchema);
