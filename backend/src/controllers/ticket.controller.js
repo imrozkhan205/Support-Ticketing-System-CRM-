@@ -17,21 +17,27 @@ export const createTicket = async (req, res) => {
 };
 
 // Get tickets (filtered by role)
+// Get tickets (filtered by role)
 export const getTickets = async (req, res) => {
   const { role, username } = req.user;
-  const { status, assignedTo } = req.query;
+  const { status } = req.query;
 
   const filter = {};
 
-  // Role-based visibility
+  // Role-based access control
   if (role === "customer") {
+    // Customers see only their own tickets
     filter.createdBy = username;
+  } else if (role === "support") {
+    // Supports see only tickets assigned to them
+    filter.assignedTo = username;
   }
-  // support and admin see everything — no filter on `createdBy` or `assignedTo`
+  // Admin sees all tickets (no filter on `createdBy` or `assignedTo`)
 
-  // Optional query filters
-  if (status) filter.status = status;
-  if (assignedTo) filter.assignedTo = assignedTo;
+  // Optional query filter
+  if (status) {
+    filter.status = status;
+  }
 
   try {
     const tickets = await Ticket.find(filter).sort({ createdAt: -1 });
@@ -40,6 +46,7 @@ export const getTickets = async (req, res) => {
     res.status(500).json({ message: "Failed to fetch tickets", error: err.message });
   }
 };
+
 
 
 // Update ticket status (admin/support only)
