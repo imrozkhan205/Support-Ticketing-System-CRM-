@@ -1,16 +1,34 @@
-import { users } from "../libs/users.js";
+// controllers/auth.controller.js
 import jwt from "jsonwebtoken";
+import User from "../models/User.js";
 
-export const login = (req, res) => {
+export const login = async (req, res) => {
   const { username, password } = req.body;
 
-  const user = users.find(u => u.username === username && u.password === password);
+  // Allow hardcoded admin login
+  if (username === "admin1" && password === "pass123") {
+    const token = jwt.sign({ username: "admin1", role: "admin" }, process.env.JWT_SECRET, {
+      expiresIn: "7d",
+    });
+    return res.json({ token, username: "admin1", role: "admin" });
+  }
 
-  if (!user) return res.status(401).json({ message: "Invalid credentials" });
+  try {
+    const user = await User.findOne({ username });
 
-  const token = jwt.sign({ username: user.username, role: user.role }, process.env.JWT_SECRET, {
-    expiresIn: "7d", // Token valid for 7 days
-  });
+    if (!user || user.password !== password) {
+      return res.status(401).json({ message: "Invalid credentials" });
+    }
 
-  res.json({ token, username: user.username, role: user.role });
+    const token = jwt.sign(
+      { username: user.username, role: user.role },
+      process.env.JWT_SECRET,
+      { expiresIn: "7d" }
+    );
+
+    res.json({ token, username: user.username, role: user.role });
+  } catch (err) {
+    console.error("Login error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
 };

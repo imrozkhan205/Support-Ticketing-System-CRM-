@@ -50,6 +50,7 @@ const Sidebar = ({ role }) => {
               }`
             }
           >
+
             {icon}
             <span>{label}</span>
           </NavLink>
