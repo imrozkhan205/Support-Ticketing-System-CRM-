@@ -3,7 +3,6 @@ import { NavLink } from "react-router-dom";
 import { LayoutDashboard, Users, Ticket, ShieldCheck } from "lucide-react";
 
 const Sidebar = ({ role }) => {
-  // Always visible
   const commonLinks = [
     { to: "/dashboard", icon: <LayoutDashboard size={20} />, label: "Dashboard" },
   ];
