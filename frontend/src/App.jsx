@@ -12,7 +12,6 @@ import Customer from './components/pages/Customer.jsx';
 import DashboardLayout from './components/layout/DashboardLayout.jsx';
 
 import { axiosInstance } from './lib/axios.js';
-
 function App() {
   const [authUser, setAuthUser] = useState(null);
   const [loading, setLoading] = useState(true);

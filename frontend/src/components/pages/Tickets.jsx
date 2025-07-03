@@ -198,6 +198,8 @@ const Tickets = ({ user, setAuthUser }) => {
           )}
         </div>
 
+        
+
         {/* Ticket Details */}
         <div className={`bg-white p-4 md:p-6 rounded-lg shadow-md md:col-span-2 ${!showMobileDetails && !selectedTicket ? 'hidden md:block' : ''}`}>
           {selectedTicket ? (
