@@ -64,6 +64,7 @@ export const updateStatus = async (req, res) => {
 
 // Assign ticket to support (admin only)
 // Assign ticket to support (admin only)
+// Assign ticket to support (admin only)
 export const assignTicket = async (req, res) => {
   const { role } = req.user;
 
@@ -75,15 +76,29 @@ export const assignTicket = async (req, res) => {
   const { assignedTo } = req.body;
 
   try {
-    const ticket = await Ticket.findByIdAndUpdate(id, { assignedTo }, { new: true });
+    const update = {
+      assignedTo: assignedTo || null,
+    };
+
+    // 👉 If assignedTo is not empty, set status to "In Progress"
+    if (assignedTo) {
+      update.status = "In Progress";
+    }
+    if(!assignedTo){
+      update.status = "Open"
+    }
+
+    const ticket = await Ticket.findByIdAndUpdate(id, update, { new: true });
     if (!ticket) {
       return res.status(404).json({ message: "Ticket not found" });
     }
+
     res.json(ticket);
   } catch (err) {
     res.status(500).json({ message: "Failed to assign ticket", error: err.message });
   }
 };
+
 
 
 // Add a comment to a ticket
