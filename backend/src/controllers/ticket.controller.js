@@ -174,6 +174,6 @@ export const getTicketById = async(req, res) => {
     if(!ticket) return res.status(404).json({message: "Ticket not found"});
     res.json(ticket);
   } catch (error) {
-    res.status(500).json({message: "Error fetching ticker", error: err.message})
+    res.status(500).json({message: "Error fetching ticker", error: error.message})
   }
 }

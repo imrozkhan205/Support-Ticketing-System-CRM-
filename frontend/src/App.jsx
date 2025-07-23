@@ -12,6 +12,7 @@ import Customer from './components/pages/Customer.jsx';
 import DashboardLayout from './components/layout/DashboardLayout.jsx';
 
 import { axiosInstance } from './lib/axios.js';
+import ChatPage from './components/pages/ChatPage.jsx';
 function App() {
   const [authUser, setAuthUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -64,7 +65,9 @@ function App() {
             <Route path='customers' element={<Customer />} />
             <Route path='ticket/:id' element={<TicketDetail user={authUser} />} />
             <Route path='new-ticket' element={<NewTicket user={authUser} />} />
+            <Route path='/tickets/:ticketId/chat' element={<ChatPage user={authUser} />} />
             <Route path='*' element={<Navigate to="/dashboard" replace />} />
+
           </Route>
         )}
 
