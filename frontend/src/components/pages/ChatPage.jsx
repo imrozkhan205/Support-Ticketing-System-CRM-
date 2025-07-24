@@ -12,7 +12,8 @@ import {
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { useParams, useNavigate } from "react-router-dom";
-import { axiosInstance } from "../../lib/axios"; // Adjust path as needed
+import { axiosInstance } from "../../lib/axios";
+import io from "socket.io-client";
 
 const ChatPage = ({ user }) => {
   const { ticketId } = useParams();
@@ -25,17 +26,13 @@ const ChatPage = ({ user }) => {
   const [replyingToMessage, setReplyingToMessage] = useState(null); // State for tracking the message being replied to
 
   const messagesEndRef = useRef(null);
-  const messageInputRef = useRef(null); // Ref for the message input field to focus on reply
-
-  // Helper function to resolve inReplyTo messages
-  // This function needs to be defined where it can access the comments array.
-  // We'll pass `selectedTicket.comments` to it.
+  const messageInputRef = useRef(null); 
   const resolveInReplyTo = (replyId, allComments) => {
     if (!replyId || !allComments) return null;
 
     // If the inReplyTo is already a full object (from optimistic update or server)
-    if (typeof replyId !== 'string' && replyId._id) {
-        return replyId; // It's already the full object
+    if (typeof replyId !== "string" && replyId._id) {
+      return replyId; // It's already the full object
     }
 
     // Otherwise, it's an ID, find the actual comment
@@ -193,7 +190,8 @@ const ChatPage = ({ user }) => {
               isOptimistic: false,
               // Crucially, preserve the inReplyTo object if the server only sends the ID,
               // or use the server's full object if it provides it.
-              inReplyTo: newCommentData.inReplyTo || optimisticComment.inReplyTo,
+              inReplyTo:
+                newCommentData.inReplyTo || optimisticComment.inReplyTo,
             };
           }
           return comment;
@@ -406,7 +404,7 @@ const ChatPage = ({ user }) => {
                 <h1 className="text-sm font-semibold text-slate-900">
                   Ticket #{selectedTicket._id.slice(-6).toUpperCase()}
                 </h1>
-                <p className="text-xs text-slate-500">Support Conversation</p>
+                {/* <p className="text-xs text-slate-500">Support Conversation</p> */}
               </div>
             </div>
           </div>
@@ -494,26 +492,29 @@ const ChatPage = ({ user }) => {
                             <div className="absolute -top-1 -right-1 w-2 h-2 bg-amber-400 rounded-full animate-pulse"></div>
                           )}
 
-                          {resolvedReplyTo && ( 
+                          {resolvedReplyTo && (
                             <div
                               className={`mb-2 p-1.5 rounded text-xs border-l-2 cursor-pointer transition-all hover:bg-opacity-20 ${
                                 isOwnMessage
                                   ? "bg-white/10 border-white/30 text-white/80 hover:bg-white/20"
                                   : "bg-blue-50 border-blue-300 text-blue-600 hover:bg-blue-100"
                               }`}
-                              onClick={() =>
-                                scrollToOriginal(resolvedReplyTo._id) // Use resolvedReplyTo._id
+                              onClick={
+                                () => scrollToOriginal(resolvedReplyTo._id) // Use resolvedReplyTo._id
                               }
                               title="Click to view original message"
                             >
                               <div className="flex items-center space-x-1 mb-0.5">
                                 <Reply className="w-3 h-3" />
-                                <span className="font-medium">
+                                <span className="font-medium flex-1 overflow-hidden whitespace-nowrap text-ellipsis break-words">
                                   "{resolvedReplyTo.message}"{" "}
                                   {/* Changed to show message */}
                                 </span>
-                                <span className="text-white text-xs ml-1">
-                                  by {resolvedReplyTo.user}{" "}
+                                <span className="text-blue text-xs ml-1">
+                                  {selectedTicket.createdBy ===
+                                  resolvedReplyTo.user
+                                    ? "Replied to yourself "
+                                    : `You Replied`}
                                 </span>
                               </div>
                             </div>
@@ -559,7 +560,7 @@ const ChatPage = ({ user }) => {
 
                           {/* Message content */}
                           <div
-                            className={`text-xs leading-relaxed ${
+                             className={`text-xs leading-relaxed break-words ${
                               isOwnMessage ? "text-white" : "text-slate-800"
                             }`}
                           >
@@ -601,11 +602,11 @@ const ChatPage = ({ user }) => {
           <div className="border-t border-slate-200 bg-white p-3 flex-shrink-0">
             <div className="flex items-center space-x-2">
               <div className="flex-1">
-                <input
-                  ref={messageInputRef} // NEW: Attach ref to input for auto-focus
+                <textarea
+                  ref={messageInputRef} 
                   type="text"
                   placeholder="Type your message..."
-                  className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-slate-50 hover:bg-white focus:bg-white text-sm"
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-slate-50 hover:bg-white focus:bg-white text-sm resize-none overflow-y-hidden"
                   value={newMessage}
                   onChange={(e) => setNewMessage(e.target.value)}
                   onKeyPress={(e) => {
@@ -615,7 +616,7 @@ const ChatPage = ({ user }) => {
                     }
                   }}
                   disabled={sendingMessage}
-                />
+                ></textarea>
               </div>
               <button
                 onClick={handleSendMessage}
