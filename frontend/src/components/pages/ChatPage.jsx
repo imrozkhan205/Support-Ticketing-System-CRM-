@@ -26,7 +26,7 @@ const ChatPage = ({ user }) => {
   const [replyingToMessage, setReplyingToMessage] = useState(null); // State for tracking the message being replied to
 
   const messagesEndRef = useRef(null);
-  const messageInputRef = useRef(null); 
+  const messageInputRef = useRef(null);
   const resolveInReplyTo = (replyId, allComments) => {
     if (!replyId || !allComments) return null;
 
@@ -460,22 +460,20 @@ const ChatPage = ({ user }) => {
                         }`}
                       >
                         {/* Reply button */}
-                        {/* Only show reply button if it's not already a reply (or you can choose to allow nested replies) */}
-                        {!comment.inReplyTo && (
-                          <button
-                            onClick={() => handleReply(comment)}
-                            className={`absolute top-1/2 -translate-y-1/2 p-1 rounded-full bg-slate-100/80 text-slate-600 hover:bg-slate-200 hover:text-slate-800 opacity-0 group-hover:opacity-100 transition
+
+                        <button
+                          onClick={() => handleReply(comment)}
+                          className={`absolute top-1/2 -translate-y-1/2 p-1 rounded-full bg-slate-100/80 text-slate-600 hover:bg-slate-200 hover:text-slate-800 opacity-0 group-hover:opacity-100 transition
                               ${
                                 isOwnMessage
                                   ? "left-[-35px] md:left-[-45px]"
                                   : "right-[-35px] md:right-[-45px]"
                               }
                             `}
-                            title="Reply"
-                          >
-                            <Reply className="w-4 h-4" />
-                          </button>
-                        )}
+                          title="Reply"
+                        >
+                          <Reply className="w-4 mx-2 h-4" />
+                        </button>
 
                         {/* Message bubble */}
                         <div
@@ -494,27 +492,23 @@ const ChatPage = ({ user }) => {
 
                           {resolvedReplyTo && (
                             <div
-                              className={`mb-2 p-1.5 rounded text-xs border-l-2 cursor-pointer transition-all hover:bg-opacity-20 ${
+                              className={`mb-1 p-2 rounded-lg text-xs border-l-2 cursor-pointer transition-all ${
                                 isOwnMessage
-                                  ? "bg-white/10 border-white/30 text-white/80 hover:bg-white/20"
-                                  : "bg-blue-50 border-blue-300 text-blue-600 hover:bg-blue-100"
+                                  ? "bg-white/10 border-white/30 text-white/80"
+                                  : "bg-slate-100 border-slate-300 text-slate-700"
                               }`}
-                              onClick={
-                                () => scrollToOriginal(resolvedReplyTo._id) // Use resolvedReplyTo._id
+                              onClick={() =>
+                                scrollToOriginal(resolvedReplyTo._id)
                               }
                               title="Click to view original message"
                             >
                               <div className="flex items-center space-x-1 mb-0.5">
-                                <Reply className="w-3 h-3" />
-                                <span className="font-medium flex-1 overflow-hidden whitespace-nowrap text-ellipsis break-words">
-                                  "{resolvedReplyTo.message}"{" "}
-                                  {/* Changed to show message */}
+                                <Reply className="w-3 h-3 flex-shrink-0" />
+                                <span className="font-semibold text-slate-350 flex-shrink-0">
+                                  {resolvedReplyTo.user} :{" "}
                                 </span>
-                                <span className="text-blue text-xs ml-1">
-                                  {selectedTicket.createdBy ===
-                                  resolvedReplyTo.user
-                                    ? "Replied to yourself "
-                                    : `You Replied`}
+                                <span className="font-normal flex-1 overflow-hidden whitespace-nowrap text-ellipsis">
+                                  {resolvedReplyTo.message}
                                 </span>
                               </div>
                             </div>
@@ -560,7 +554,7 @@ const ChatPage = ({ user }) => {
 
                           {/* Message content */}
                           <div
-                             className={`text-xs leading-relaxed break-words ${
+                            className={`text-xs leading-relaxed break-words ${
                               isOwnMessage ? "text-white" : "text-slate-800"
                             }`}
                           >
@@ -603,7 +597,7 @@ const ChatPage = ({ user }) => {
             <div className="flex items-center space-x-2">
               <div className="flex-1">
                 <textarea
-                  ref={messageInputRef} 
+                  ref={messageInputRef}
                   type="text"
                   placeholder="Type your message..."
                   className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-slate-50 hover:bg-white focus:bg-white text-sm resize-none overflow-y-hidden"
