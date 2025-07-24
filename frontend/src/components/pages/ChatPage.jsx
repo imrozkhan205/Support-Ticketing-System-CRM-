@@ -4,13 +4,11 @@ import {
   ArrowLeft,
   Send,
   MessageCircle,
-  Clock,
   User,
   Shield,
   Check,
-  CheckCheckIcon,
-  CheckCircle,
-  CheckLine,
+  Reply,
+  X,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { useParams, useNavigate } from "react-router-dom";
@@ -24,10 +22,10 @@ const ChatPage = ({ user }) => {
   const [error, setError] = useState(null);
   const [newMessage, setNewMessage] = useState("");
   const [sendingMessage, setSendingMessage] = useState(false);
+  const [replyingToMessage, setReplyingToMessage] = useState(null); // State for tracking the message being replied to
 
-  // Ref for the last message element
-  const lastMessageRef = useRef(null);
   const messagesEndRef = useRef(null);
+  const messageInputRef = useRef(null); // Ref for the message input field to focus on reply
 
   // Check if ticketId exists in URL
   useEffect(() => {
@@ -104,10 +102,23 @@ const ChatPage = ({ user }) => {
     if (messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({
         behavior: "smooth",
-        block: "nearest",
+        block: "end", // Changed to 'end' for more consistent scroll to bottom
       });
     }
   }, [selectedTicket?.comments?.length]);
+
+  // Function to set the message being replied to
+  const handleReply = (comment) => {
+    setReplyingToMessage(comment);
+    if (messageInputRef.current) {
+      messageInputRef.current.focus(); // Focus the input for typing
+    }
+  };
+
+  // Function to clear the reply state
+  const clearReply = () => {
+    setReplyingToMessage(null);
+  };
 
   const handleSendMessage = async () => {
     if (!newMessage.trim() || !selectedTicket || sendingMessage) return;
@@ -123,6 +134,14 @@ const ChatPage = ({ user }) => {
       role: user.role,
       createdAt: new Date().toISOString(),
       isOptimistic: true,
+      // Include partial reply data for optimistic display
+      inReplyTo: replyingToMessage
+        ? {
+            _id: replyingToMessage._id,
+            message: replyingToMessage.message,
+            user: replyingToMessage.user,
+          }
+        : undefined,
     };
 
     // Optimistically update the UI
@@ -131,44 +150,66 @@ const ChatPage = ({ user }) => {
       comments: [...(prev.comments || []), optimisticComment],
     }));
     setNewMessage(""); // Clear input immediately
+    // Do NOT call clearReply() here. It will be cleared on success.
 
     try {
+      const payload = {
+        message: messageText,
+        user: user.username,
+        role: user.role,
+      };
+      // Send only the _id to the backend for the reply
+      if (replyingToMessage) {
+        payload.inReplyTo = replyingToMessage._id;
+      }
+
       const res = await axiosInstance.post(
         `/tickets/${selectedTicket._id}/comments`,
-        {
-          message: messageText,
-          user: user.username,
-          role: user.role,
-        }
+        payload // Use the payload that includes inReplyTo
       );
 
+      // Function to find a comment by its temporary ID (or actual ID) and update it
+      const findAndUpdateComment = (comments, newCommentData) => {
+        return comments.map((comment) => {
+          if (comment._id === optimisticComment._id && comment.isOptimistic) {
+            // Replace optimistic comment with actual server response data
+            // Ensure inReplyTo from server is used, or fallback to optimistic if not returned
+            return {
+              ...newCommentData,
+              isOptimistic: false,
+              inReplyTo:
+                newCommentData.inReplyTo || optimisticComment.inReplyTo, // Persist inReplyTo if server doesn't send it back
+            };
+          }
+          return comment;
+        });
+      };
+
+      // Handle server response for comments
       let updatedTicket;
       if (res.data.comments && Array.isArray(res.data.comments)) {
-        updatedTicket = res.data;
+        // If API returns the full list of comments, update directly
+        setSelectedTicket((prev) => ({
+          ...prev,
+          comments: res.data.comments,
+        }));
       } else if (res.data._id && res.data.message && res.data.user) {
-        const newComment = {
-          _id: res.data._id,
-          message: res.data.message,
-          user: res.data.user,
-          role: res.data.role || user.role,
-          createdAt: res.data.createdAt || new Date().toISOString(),
-        };
-        updatedTicket = {
-          ...selectedTicket,
-          comments: [
-            ...(selectedTicket.comments || []).filter((c) => !c.isOptimistic),
-            newComment,
-          ],
-        };
+        // If API returns only the newly created comment, update locally
+        setSelectedTicket((prev) => ({
+          ...prev,
+          comments: findAndUpdateComment(prev.comments || [], res.data),
+        }));
       } else {
+        // Fallback: re-fetch the entire ticket if response format is unexpected
         const ticketRes = await axiosInstance.get(
           `/tickets/${selectedTicket._id}`
         );
         updatedTicket = ticketRes.data;
+        setSelectedTicket(updatedTicket);
       }
 
-      setSelectedTicket(updatedTicket);
       toast.success("Message sent successfully");
+      clearReply(); // IMPORTANT: Clear reply state ONLY AFTER successful send
     } catch (err) {
       console.error("Error sending message:", err);
       toast.error("Failed to send message");
@@ -216,7 +257,22 @@ const ChatPage = ({ user }) => {
       case "support":
         return "bg-blue-100 text-blue-700 border-blue-200";
       default:
-        return "bg-gray-100 text-gray-700 border-gray-200";
+        return "bg-gray-100 text-gray-gray-700 border-gray-200";
+    }
+  };
+  // Inside ChatPage component
+
+  // Function: scroll and highlight
+  const scrollToOriginal = (originalId) => {
+    if (!originalId) return;
+    const el = document.getElementById(`msg-${originalId}`);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      // Add highlight ring
+      el.classList.add("ring-2", "ring-blue-400");
+      setTimeout(() => {
+        el.classList.remove("ring-2", "ring-blue-400");
+      }, 1500);
     }
   };
 
@@ -231,11 +287,11 @@ const ChatPage = ({ user }) => {
           <p className="text-gray-600 mb-4">
             Please wait while we fetch your conversation...
           </p>
-          <div className="text-xs text-gray-400">
+          {/* <div className="text-xs text-gray-400">
             Ticket ID: {ticketId || "Not provided"}
             <br />
             Current URL: {window.location.pathname}
-          </div>
+          </div> */}
         </div>
       </div>
     );
@@ -328,10 +384,10 @@ const ChatPage = ({ user }) => {
               </div>
             </div>
           </div>
-
-          <div className="px-2 py-1 bg-green-100 text-green-700 text-xs font-medium rounded-full border border-green-200">
-            Active
-          </div>
+        </div>
+        <div className="text-center">
+          Ticket of:{" "}
+          <span className="font-semibold">{selectedTicket.createdBy}</span>
         </div>
       </div>
 
@@ -355,100 +411,152 @@ const ChatPage = ({ user }) => {
               </div>
             ) : (
               <>
-                {selectedTicket.comments.map((comment, index) => (
-                  <div
-                    key={`${
-                      comment._id || `temp-${index}`
-                    }-${comment.message.substring(
-                      0,
-                      Math.min(comment.message.length, 10)
-                    )}`}
-                    className={`flex ${
-                      comment.user === user.username
-                        ? "justify-end"
-                        : "justify-start"
-                    }`}
-                  >
+                {selectedTicket.comments.map((comment, index) => {
+                  const isOwnMessage = comment.user === user.username;
+
+                  return (
                     <div
-                      className={`max-w-xs relative ${
-                        comment.user === user.username ? "order-2" : "order-1"
+                      key={comment._id || `temp-${index}`}
+                      id={`msg-${comment._id}`} // ID for scroll target
+                      className={`flex ${
+                        isOwnMessage ? "justify-end" : "justify-start"
                       }`}
                     >
-                      {/* Message Bubble */}
                       <div
-                        className={`relative p-2.5 rounded-lg shadow-sm border transition-all duration-200 ${
-                          comment.user === user.username
-                            ? "bg-blue-600 text-white border-blue-600"
-                            : "bg-white text-slate-900 border-slate-200"
-                        } ${comment.isOptimistic ? "opacity-70" : ""}`}
+                        className={`max-w-xs relative group ${
+                          isOwnMessage ? "order-2" : "order-1"
+                        }`}
                       >
-                        {/* Optimistic indicator */}
-                        {comment.isOptimistic && (
-                          <div className="absolute -top-1 -right-1 w-2 h-2 bg-amber-400 rounded-full animate-pulse"></div>
+                        {/* Reply button */}
+                        {!comment.inReplyTo && (
+                          <button
+                            onClick={() => handleReply(comment)}
+                            className={`absolute top-1/2 -translate-y-1/2 p-1 rounded-full bg-slate-100/80 text-slate-600 hover:bg-slate-200 hover:text-slate-800 opacity-0 group-hover:opacity-100 transition
+                              ${
+                                isOwnMessage
+                                  ? "left-[-35px] md:left-[-45px]"
+                                  : "right-[-35px] md:right-[-45px]"
+                              }
+                            `}
+                            title="Reply"
+                          >
+                            <Reply className="w-4 h-4" />
+                          </button>
                         )}
 
-                        {/* Message Header */}
-                        <div className="flex items-center justify-between mb-1">
-                          <div className="flex items-center space-x-1">
-                            <span
-                              className={`text-xs font-semibold ${
-                                comment.user === user.username
-                                  ? "text-blue-100"
-                                  : "text-slate-700"
-                              }`}
-                            >
-                              {comment.user}
-                            </span>
-                            {comment.role && (
-                              <div
-                                className={`flex items-center px-1 py-0.5 rounded text-xs font-medium ${
-                                  comment.user === user.username
-                                    ? "bg-blue-500 text-blue-100"
-                                    : getRoleBadgeColor(comment.role)
+                        {/* Message bubble */}
+                        <div
+                          className={`relative p-2.5 rounded-lg shadow-sm border
+                          ${
+                            isOwnMessage
+                              ? "bg-blue-600 text-white border-blue-600"
+                              : "bg-white text-slate-900 border-slate-200"
+                          }
+                          ${comment.isOptimistic ? "opacity-70" : ""}
+                        `}
+                        >
+                          {/* Optimistic dot */}
+                          {comment.isOptimistic && (
+                            <div className="absolute -top-1 -right-1 w-2 h-2 bg-amber-400 rounded-full animate-pulse"></div>
+                          )}
+
+                          {/* Instagram-style quoted reply */}
+                          {comment.inReplyTo && (
+                            <div className="mb-1 flex items-center text-xs">
+                              <div className="flex-1">
+                                <span className="block text-white/70 truncate">
+                                  {comment.inReplyTo.message}
+                                </span>
+                              </div>
+                              <div className="w-0.5 h-4 ml-1 bg-white/40 rounded"></div>
+                            </div>
+                          )}
+
+                          {/* Header */}
+                          <div className="flex items-center justify-between mb-1">
+                            <div className="flex items-center space-x-1">
+                              <span
+                                className={`text-xs font-semibold ${
+                                  isOwnMessage
+                                    ? "text-blue-100"
+                                    : "text-slate-700"
                                 }`}
                               >
-                                {getRoleIcon(comment.role)}
-                              </div>
-                            )}
+                                {comment.user}
+                              </span>
+                              {comment.role && (
+                                <div
+                                  className={`flex items-center px-1 py-0.5 rounded text-xs font-medium ${
+                                    isOwnMessage
+                                      ? "bg-blue-500 text-blue-100"
+                                      : getRoleBadgeColor(comment.role)
+                                  }`}
+                                >
+                                  {getRoleIcon(comment.role)}
+                                </div>
+                              )}
+                            </div>
+                            <div
+                              className={`flex items-center space-x-1 text-xs opacity-75 ${
+                                isOwnMessage
+                                  ? "text-blue-100"
+                                  : "text-slate-500"
+                              }`}
+                            >
+                              <Check className="w-2 h-2" />
+                              <span className="text-xs">
+                                {formatTime(comment.createdAt)}
+                              </span>
+                            </div>
                           </div>
+
+                          {/* Message content */}
                           <div
-                            className={`flex items-center space-x-1 text-xs opacity-75 ${
-                              comment.user === user.username
-                                ? "text-blue-100"
-                                : "text-slate-500"
+                            className={`text-xs leading-relaxed ${
+                              isOwnMessage ? "text-white" : "text-slate-800"
                             }`}
                           >
-                            <Check className="w-2 h-2" />
-                            <span className="text-xs">
-                              {formatTime(comment.createdAt)}
-                            </span>
+                            {comment.message}
                           </div>
-                        </div>
-
-                        {/* Message Content */}
-                        <div
-                          className={`text-xs leading-relaxed ${
-                            comment.user === user.username
-                              ? "text-white"
-                              : "text-slate-800"
-                          }`}
-                        >
-                          {comment.message}
                         </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
                 <div ref={messagesEndRef} />
               </>
             )}
           </div>
+
+          {/* NEW: Reply Prompt (Conditionally rendered) */}
+          {replyingToMessage && (
+            <div
+              className={`bg-blue-50 text-blue-800 p-3 rounded-t-xl border-b border-blue-200 flex items-center justify-between text-sm transition-all duration-300 ease-out transform translate-y-0 opacity-100`}
+            >
+              <div>
+                <span className="font-semibold">
+                  Replying to {replyingToMessage.user}:
+                </span>{" "}
+                <span className="truncate max-w-[190px] -">
+                  {replyingToMessage.message}
+                </span>
+              </div>
+              <button
+                onClick={clearReply} // This handles the 'X' functionality
+                className="text-blue-600 hover:text-blue-900 ml-2 p-1 rounded-full hover:bg-blue-100"
+                title="Clear reply"
+              >
+                <X className="w-4 h-4" /> {/* The 'X' icon */}
+              </button>
+            </div>
+          )}
 
           {/* Message Input */}
           <div className="border-t border-slate-200 bg-white p-3 flex-shrink-0">
             <div className="flex items-center space-x-2">
               <div className="flex-1">
                 <input
+                  ref={messageInputRef} // NEW: Attach ref to input for auto-focus
                   type="text"
                   placeholder="Type your message..."
                   className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-slate-50 hover:bg-white focus:bg-white text-sm"
