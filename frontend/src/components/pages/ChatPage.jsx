@@ -27,6 +27,21 @@ const ChatPage = ({ user }) => {
   const messagesEndRef = useRef(null);
   const messageInputRef = useRef(null); // Ref for the message input field to focus on reply
 
+  // Helper function to resolve inReplyTo messages
+  // This function needs to be defined where it can access the comments array.
+  // We'll pass `selectedTicket.comments` to it.
+  const resolveInReplyTo = (replyId, allComments) => {
+    if (!replyId || !allComments) return null;
+
+    // If the inReplyTo is already a full object (from optimistic update or server)
+    if (typeof replyId !== 'string' && replyId._id) {
+        return replyId; // It's already the full object
+    }
+
+    // Otherwise, it's an ID, find the actual comment
+    return allComments.find((c) => c._id === replyId);
+  };
+
   // Check if ticketId exists in URL
   useEffect(() => {
     console.log("Current URL params:", { ticketId });
@@ -173,12 +188,12 @@ const ChatPage = ({ user }) => {
         return comments.map((comment) => {
           if (comment._id === optimisticComment._id && comment.isOptimistic) {
             // Replace optimistic comment with actual server response data
-            // Ensure inReplyTo from server is used, or fallback to optimistic if not returned
             return {
               ...newCommentData,
               isOptimistic: false,
-              inReplyTo:
-                newCommentData.inReplyTo || optimisticComment.inReplyTo, // Persist inReplyTo if server doesn't send it back
+              // Crucially, preserve the inReplyTo object if the server only sends the ID,
+              // or use the server's full object if it provides it.
+              inReplyTo: newCommentData.inReplyTo || optimisticComment.inReplyTo,
             };
           }
           return comment;
@@ -186,7 +201,7 @@ const ChatPage = ({ user }) => {
       };
 
       // Handle server response for comments
-      let updatedTicket;
+      // Assuming the API returns either the full updated ticket or the new comment
       if (res.data.comments && Array.isArray(res.data.comments)) {
         // If API returns the full list of comments, update directly
         setSelectedTicket((prev) => ({
@@ -201,11 +216,22 @@ const ChatPage = ({ user }) => {
         }));
       } else {
         // Fallback: re-fetch the entire ticket if response format is unexpected
-        const ticketRes = await axiosInstance.get(
-          `/tickets/${selectedTicket._id}`
-        );
-        updatedTicket = ticketRes.data;
-        setSelectedTicket(updatedTicket);
+        console.warn("Unexpected API response format, re-fetching ticket");
+        try {
+          const ticketRes = await axiosInstance.get(
+            `/tickets/${selectedTicket._id}`
+          );
+          setSelectedTicket(ticketRes.data);
+        } catch (refetchErr) {
+          console.error("Failed to refetch ticket:", refetchErr);
+          // If refetch fails, keep the optimistic state but mark as not optimistic
+          setSelectedTicket((prev) => ({
+            ...prev,
+            comments: prev.comments.map((c) =>
+              c.isOptimistic ? { ...c, isOptimistic: false } : c
+            ),
+          }));
+        }
       }
 
       toast.success("Message sent successfully");
@@ -414,6 +440,14 @@ const ChatPage = ({ user }) => {
                 {selectedTicket.comments.map((comment, index) => {
                   const isOwnMessage = comment.user === user.username;
 
+                  // Define resolvedReplyTo here, inside the map loop
+                  const resolvedReplyTo = comment.inReplyTo
+                    ? resolveInReplyTo(
+                        comment.inReplyTo,
+                        selectedTicket.comments
+                      )
+                    : null;
+
                   return (
                     <div
                       key={comment._id || `temp-${index}`}
@@ -428,6 +462,7 @@ const ChatPage = ({ user }) => {
                         }`}
                       >
                         {/* Reply button */}
+                        {/* Only show reply button if it's not already a reply (or you can choose to allow nested replies) */}
                         {!comment.inReplyTo && (
                           <button
                             onClick={() => handleReply(comment)}
@@ -447,28 +482,40 @@ const ChatPage = ({ user }) => {
                         {/* Message bubble */}
                         <div
                           className={`relative p-2.5 rounded-lg shadow-sm border
-                          ${
-                            isOwnMessage
-                              ? "bg-blue-600 text-white border-blue-600"
-                              : "bg-white text-slate-900 border-slate-200"
-                          }
-                          ${comment.isOptimistic ? "opacity-70" : ""}
-                        `}
+                            ${
+                              isOwnMessage
+                                ? "bg-blue-600 text-white border-blue-600"
+                                : "bg-white text-slate-900 border-slate-200"
+                            }
+                            ${comment.isOptimistic ? "opacity-70" : ""}
+                          `}
                         >
-                          {/* Optimistic dot */}
                           {comment.isOptimistic && (
                             <div className="absolute -top-1 -right-1 w-2 h-2 bg-amber-400 rounded-full animate-pulse"></div>
                           )}
 
-                          {/* Instagram-style quoted reply */}
-                          {comment.inReplyTo && (
-                            <div className="mb-1 flex items-center text-xs">
-                              <div className="flex-1">
-                                <span className="block text-white/70 truncate">
-                                  {comment.inReplyTo.message}
+                          {resolvedReplyTo && ( 
+                            <div
+                              className={`mb-2 p-1.5 rounded text-xs border-l-2 cursor-pointer transition-all hover:bg-opacity-20 ${
+                                isOwnMessage
+                                  ? "bg-white/10 border-white/30 text-white/80 hover:bg-white/20"
+                                  : "bg-blue-50 border-blue-300 text-blue-600 hover:bg-blue-100"
+                              }`}
+                              onClick={() =>
+                                scrollToOriginal(resolvedReplyTo._id) // Use resolvedReplyTo._id
+                              }
+                              title="Click to view original message"
+                            >
+                              <div className="flex items-center space-x-1 mb-0.5">
+                                <Reply className="w-3 h-3" />
+                                <span className="font-medium">
+                                  "{resolvedReplyTo.message}"{" "}
+                                  {/* Changed to show message */}
+                                </span>
+                                <span className="text-white text-xs ml-1">
+                                  by {resolvedReplyTo.user}{" "}
                                 </span>
                               </div>
-                              <div className="w-0.5 h-4 ml-1 bg-white/40 rounded"></div>
                             </div>
                           )}
 
@@ -528,7 +575,6 @@ const ChatPage = ({ user }) => {
             )}
           </div>
 
-          {/* NEW: Reply Prompt (Conditionally rendered) */}
           {replyingToMessage && (
             <div
               className={`bg-blue-50 text-blue-800 p-3 rounded-t-xl border-b border-blue-200 flex items-center justify-between text-sm transition-all duration-300 ease-out transform translate-y-0 opacity-100`}

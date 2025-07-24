@@ -104,8 +104,9 @@ export const assignTicket = async (req, res) => {
 // Add a comment to a ticket
 export const addComment = async (req, res) => {
   const { id } = req.params;
-  const { message, parentCommentPath } = req.body;
+  const { message, inReplyTo } = req.body;
   const user = req.user.username;
+  const role = req.user.role;
 
   try {
     const ticket = await Ticket.findById(id);
@@ -115,37 +116,21 @@ export const addComment = async (req, res) => {
 
     const newComment = {
       user,
+      role,
       message,
       createdAt: new Date(),
-      replies: [],
+      inReplyTo: inReplyTo || undefined
     };
 
-    if (Array.isArray(parentCommentPath) && parentCommentPath.length > 0) {
-      // Traverse the comment tree to find the parent
-      let current = ticket.comments;
-      for (let i = 0; i < parentCommentPath.length; i++) {
-        const index = parentCommentPath[i];
-        if (!current[index]) {
-          return res.status(400).json({ message: "Invalid comment path" });
-        }
-        if (i === parentCommentPath.length - 1) {
-          // Final level, push reply
-          current[index].replies.push(newComment);
-        } else {
-          current = current[index].replies;
-        }
-      }
-    } else {
-      // Top-level comment
-      ticket.comments.push(newComment);
-    }
-
+    ticket.comments.push(newComment);
     await ticket.save();
-    res.status(200).json({ message: "Comment added", ticket });
+
+    res.status(200).json(newComment);
   } catch (err) {
     res.status(500).json({ message: "Failed to add comment", error: err.message });
   }
 };
+
 
 
 // Delete a ticket (admin only)
