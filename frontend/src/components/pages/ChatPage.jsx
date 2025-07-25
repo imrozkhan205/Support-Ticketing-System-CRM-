@@ -1,4 +1,3 @@
-// src/pages/ChatPage.jsx
 import React, { useState, useEffect, useRef } from "react";
 import {
   ArrowLeft,
@@ -15,6 +14,8 @@ import { useParams, useNavigate } from "react-router-dom";
 import { axiosInstance } from "../../lib/axios";
 import io from "socket.io-client";
 
+const SOCKET_SERVER_URL = "http://localhost:5000"; 
+
 const ChatPage = ({ user }) => {
   const { ticketId } = useParams();
   const navigate = useNavigate();
@@ -23,23 +24,22 @@ const ChatPage = ({ user }) => {
   const [error, setError] = useState(null);
   const [newMessage, setNewMessage] = useState("");
   const [sendingMessage, setSendingMessage] = useState(false);
-  const [replyingToMessage, setReplyingToMessage] = useState(null); // State for tracking the message being replied to
+  const [replyingToMessage, setReplyingToMessage] = useState(null);
+  const socketRef = useRef(null); // Ref to hold the socket instance
 
   const messagesEndRef = useRef(null);
   const messageInputRef = useRef(null);
+
   const resolveInReplyTo = (replyId, allComments) => {
     if (!replyId || !allComments) return null;
 
-    // If the inReplyTo is already a full object (from optimistic update or server)
     if (typeof replyId !== "string" && replyId._id) {
-      return replyId; // It's already the full object
+      return replyId;
     }
 
-    // Otherwise, it's an ID, find the actual comment
     return allComments.find((c) => c._id === replyId);
   };
 
-  // Check if ticketId exists in URL
   useEffect(() => {
     console.log("Current URL params:", { ticketId });
     console.log("Current pathname:", window.location.pathname);
@@ -52,11 +52,6 @@ const ChatPage = ({ user }) => {
       setLoadingTicket(false);
       return;
     }
-  }, [ticketId]);
-
-  // Fetch ticket details when the component mounts or ticketId changes
-  useEffect(() => {
-    if (!ticketId) return; // Don't fetch if no ticketId
 
     const fetchTicket = async () => {
       setLoadingTicket(true);
@@ -109,25 +104,96 @@ const ChatPage = ({ user }) => {
     fetchTicket();
   }, [ticketId]);
 
+  useEffect(() => {
+    if (!ticketId || !user) return; 
+
+    // Initialize socket connection
+    socketRef.current = io(SOCKET_SERVER_URL, {
+      query: { userId: user._id }, 
+    });
+
+    socketRef.current.on("connect", () => {
+      console.log("Socket connected:", socketRef.current.id);
+      // Join the ticket-specific room
+      socketRef.current.emit("joinTicketRoom", ticketId);
+    });
+
+    socketRef.current.on("disconnect", () => {
+      console.log("Socket disconnected");
+    });
+
+    socketRef.current.on("connect_error", (err) => {
+      console.error("Socket connection error:", err);
+      toast.error("Real-time chat connection failed.");
+    });
+
+    // Listen for new messages
+    socketRef.current.on("newComment", (newComment) => {
+      console.log("Received new comment via socket:", newComment);
+      // Update the selectedTicket's comments array
+      setSelectedTicket((prev) => {
+        // Prevent duplicate comments if the optimistic update was already replaced by the server response
+        const isDuplicate = prev.comments.some(
+          (comment) => comment._id === newComment._id
+        );
+        if (isDuplicate) {
+          return prev;
+        }
+
+        // Find and replace the optimistic comment if it exists, otherwise just add
+        return {
+          ...prev,
+          comments: (prev.comments || []).map((c) =>
+            c.isOptimistic && c.message === newComment.message && c.user === newComment.user
+              ? { ...newComment, isOptimistic: false } // Replace with actual and remove optimistic flag
+              : c
+          ).some((c) => c._id === newComment._id) // Check if newComment was already added via replacement
+            ? prev.comments.map((c) =>
+                c.isOptimistic && c.message === newComment.message && c.user === newComment.user
+                  ? { ...newComment, isOptimistic: false } // Replace with actual and remove optimistic flag
+                  : c
+              )
+            : [...(prev.comments || []).filter((c) => !c.isOptimistic), newComment], // Add if not replaced/duplicated
+        };
+      });
+    });
+
+    // Listen for deleted comments (if you implement this functionality)
+    socketRef.current.on("commentDeleted", (commentId) => {
+      setSelectedTicket((prev) => ({
+        ...prev,
+        comments: prev.comments.filter((comment) => comment._id !== commentId),
+      }));
+      toast.info("A message was deleted.");
+    });
+
+    // Clean up on component unmount
+    return () => {
+      if (socketRef.current) {
+        console.log("Leaving ticket room:", ticketId);
+        socketRef.current.emit("leaveTicketRoom", ticketId);
+        socketRef.current.disconnect();
+      }
+    };
+  }, [ticketId, user]); // Re-run if ticketId or user changes
+
   // Scroll to bottom effect for chat messages
   useEffect(() => {
     if (messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({
         behavior: "smooth",
-        block: "end", // Changed to 'end' for more consistent scroll to bottom
+        block: "end",
       });
     }
-  }, [selectedTicket?.comments?.length]);
+  }, [selectedTicket?.comments?.length, selectedTicket?.comments]); // Depend on the array reference as well
 
-  // Function to set the message being replied to
   const handleReply = (comment) => {
     setReplyingToMessage(comment);
     if (messageInputRef.current) {
-      messageInputRef.current.focus(); // Focus the input for typing
+      messageInputRef.current.focus();
     }
   };
 
-  // Function to clear the reply state
   const clearReply = () => {
     setReplyingToMessage(null);
   };
@@ -137,7 +203,7 @@ const ChatPage = ({ user }) => {
 
     setSendingMessage(true);
     const messageText = newMessage.trim();
-    const tempId = Date.now().toString(); // Temporary ID for optimistic update
+    const tempId = `optimistic-${Date.now()}`; // Unique temporary ID for optimistic update
 
     const optimisticComment = {
       _id: tempId,
@@ -146,7 +212,6 @@ const ChatPage = ({ user }) => {
       role: user.role,
       createdAt: new Date().toISOString(),
       isOptimistic: true,
-      // Include partial reply data for optimistic display
       inReplyTo: replyingToMessage
         ? {
             _id: replyingToMessage._id,
@@ -162,78 +227,47 @@ const ChatPage = ({ user }) => {
       comments: [...(prev.comments || []), optimisticComment],
     }));
     setNewMessage(""); // Clear input immediately
-    // Do NOT call clearReply() here. It will be cleared on success.
+    clearReply(); // Clear reply state immediately for new message input
 
     try {
       const payload = {
         message: messageText,
         user: user.username,
         role: user.role,
+        ticketId: selectedTicket._id, // Ensure ticketId is sent for the server to associate
       };
-      // Send only the _id to the backend for the reply
       if (replyingToMessage) {
         payload.inReplyTo = replyingToMessage._id;
       }
 
       const res = await axiosInstance.post(
         `/tickets/${selectedTicket._id}/comments`,
-        payload // Use the payload that includes inReplyTo
+        payload
       );
 
-      // Function to find a comment by its temporary ID (or actual ID) and update it
-      const findAndUpdateComment = (comments, newCommentData) => {
-        return comments.map((comment) => {
-          if (comment._id === optimisticComment._id && comment.isOptimistic) {
-            // Replace optimistic comment with actual server response data
-            return {
-              ...newCommentData,
-              isOptimistic: false,
-              // Crucially, preserve the inReplyTo object if the server only sends the ID,
-              // or use the server's full object if it provides it.
-              inReplyTo:
-                newCommentData.inReplyTo || optimisticComment.inReplyTo,
-            };
-          }
-          return comment;
-        });
-      };
+      // On successful API response, the `newComment` socket event from the server
+      // should handle the actual update and replace the optimistic comment.
+      // We don't need to manually update `selectedTicket` here based on `res.data`
+      // if the server is broadcasting the new comment via Socket.IO.
+      // However, it's good practice to ensure the optimistic one is cleaned up
+      // if for some reason the socket event is missed or delayed.
 
-      // Handle server response for comments
-      // Assuming the API returns either the full updated ticket or the new comment
-      if (res.data.comments && Array.isArray(res.data.comments)) {
-        // If API returns the full list of comments, update directly
-        setSelectedTicket((prev) => ({
-          ...prev,
-          comments: res.data.comments,
-        }));
-      } else if (res.data._id && res.data.message && res.data.user) {
-        // If API returns only the newly created comment, update locally
-        setSelectedTicket((prev) => ({
-          ...prev,
-          comments: findAndUpdateComment(prev.comments || [], res.data),
-        }));
-      } else {
-        // Fallback: re-fetch the entire ticket if response format is unexpected
-        console.warn("Unexpected API response format, re-fetching ticket");
-        try {
-          const ticketRes = await axiosInstance.get(
-            `/tickets/${selectedTicket._id}`
-          );
-          setSelectedTicket(ticketRes.data);
-        } catch (refetchErr) {
-          console.error("Failed to refetch ticket:", refetchErr);
-          // If refetch fails, keep the optimistic state but mark as not optimistic
-          setSelectedTicket((prev) => ({
-            ...prev,
-            comments: prev.comments.map((c) =>
-              c.isOptimistic ? { ...c, isOptimistic: false } : c
-            ),
-          }));
+      setSelectedTicket((prev) => {
+        const updatedComments = (prev.comments || []).map((comment) =>
+          comment._id === optimisticComment._id
+            ? { ...res.data, isOptimistic: false } // Replace optimistic with actual data
+            : comment
+        );
+        const actualCommentAlreadyPresent = updatedComments.some(
+          (c) => c._id === res.data._id
+        );
+        if (!actualCommentAlreadyPresent) {
+          updatedComments.push({ ...res.data, isOptimistic: false });
         }
-      }
+        return { ...prev, comments: updatedComments };
+      });
 
       toast.success("Message sent successfully");
-      clearReply(); // IMPORTANT: Clear reply state ONLY AFTER successful send
     } catch (err) {
       console.error("Error sending message:", err);
       toast.error("Failed to send message");
@@ -241,7 +275,7 @@ const ChatPage = ({ user }) => {
       // Rollback optimistic update on error
       setSelectedTicket((prev) => ({
         ...prev,
-        comments: (prev.comments || []).filter((c) => !c.isOptimistic),
+        comments: (prev.comments || []).filter((c) => c._id !== optimisticComment._id), // Remove the specific optimistic comment
       }));
       setNewMessage(messageText); // Restore message
     } finally {
@@ -284,19 +318,16 @@ const ChatPage = ({ user }) => {
         return "bg-gray-100 text-gray-gray-700 border-gray-200";
     }
   };
-  // Inside ChatPage component
 
-  // Function: scroll and highlight
   const scrollToOriginal = (originalId) => {
     if (!originalId) return;
     const el = document.getElementById(`msg-${originalId}`);
     if (el) {
       el.scrollIntoView({ behavior: "smooth", block: "center" });
-      // Add highlight ring
-      el.classList.add("ring-2", "ring-blue-400");
+      el.classList.add("bg-gray-100", "rounded-md");
       setTimeout(() => {
-        el.classList.remove("ring-2", "ring-blue-400");
-      }, 1500);
+        el.classList.remove("bg-gray-100", "bg-gray-100", "rounded");
+      }, 500);
     }
   };
 
@@ -311,11 +342,6 @@ const ChatPage = ({ user }) => {
           <p className="text-gray-600 mb-4">
             Please wait while we fetch your conversation...
           </p>
-          {/* <div className="text-xs text-gray-400">
-            Ticket ID: {ticketId || "Not provided"}
-            <br />
-            Current URL: {window.location.pathname}
-          </div> */}
         </div>
       </div>
     );
@@ -404,7 +430,6 @@ const ChatPage = ({ user }) => {
                 <h1 className="text-sm font-semibold text-slate-900">
                   Ticket #{selectedTicket._id.slice(-6).toUpperCase()}
                 </h1>
-                {/* <p className="text-xs text-slate-500">Support Conversation</p> */}
               </div>
             </div>
           </div>
@@ -412,6 +437,13 @@ const ChatPage = ({ user }) => {
         <div className="text-center">
           Ticket of:{" "}
           <span className="font-semibold">{selectedTicket.createdBy}</span>
+          <p>
+            Assigned To:{" "}
+            <span className="font-semibold">
+              {selectedTicket.assignedTo || "Unassigned"}
+            </span>{" "}
+            {/* Use selectedTicket here */}
+          </p>
         </div>
       </div>
 
@@ -438,7 +470,6 @@ const ChatPage = ({ user }) => {
                 {selectedTicket.comments.map((comment, index) => {
                   const isOwnMessage = comment.user === user.username;
 
-                  // Define resolvedReplyTo here, inside the map loop
                   const resolvedReplyTo = comment.inReplyTo
                     ? resolveInReplyTo(
                         comment.inReplyTo,
@@ -449,7 +480,7 @@ const ChatPage = ({ user }) => {
                   return (
                     <div
                       key={comment._id || `temp-${index}`}
-                      id={`msg-${comment._id}`} // ID for scroll target
+                      id={`msg-${comment._id}`}
                       className={`flex ${
                         isOwnMessage ? "justify-end" : "justify-start"
                       }`}
@@ -459,8 +490,6 @@ const ChatPage = ({ user }) => {
                           isOwnMessage ? "order-2" : "order-1"
                         }`}
                       >
-                        {/* Reply button */}
-
                         <button
                           onClick={() => handleReply(comment)}
                           className={`absolute top-1/2 -translate-y-1/2 p-1 rounded-full bg-slate-100/80 text-slate-600 hover:bg-slate-200 hover:text-slate-800 opacity-0 group-hover:opacity-100 transition
@@ -475,16 +504,15 @@ const ChatPage = ({ user }) => {
                           <Reply className="w-4 mx-2 h-4" />
                         </button>
 
-                        {/* Message bubble */}
                         <div
                           className={`relative p-2.5 rounded-lg shadow-sm border
-                            ${
-                              isOwnMessage
-                                ? "bg-blue-600 text-white border-blue-600"
-                                : "bg-white text-slate-900 border-slate-200"
-                            }
-                            ${comment.isOptimistic ? "opacity-70" : ""}
-                          `}
+                              ${
+                                isOwnMessage
+                                  ? "bg-blue-600 text-white border-blue-600"
+                                  : "bg-white text-slate-900 border-slate-200"
+                              }
+                              ${comment.isOptimistic ? "opacity-70" : ""}
+                            `}
                         >
                           {comment.isOptimistic && (
                             <div className="absolute -top-1 -right-1 w-2 h-2 bg-amber-400 rounded-full animate-pulse"></div>
@@ -514,7 +542,6 @@ const ChatPage = ({ user }) => {
                             </div>
                           )}
 
-                          {/* Header */}
                           <div className="flex items-center justify-between mb-1">
                             <div className="flex items-center space-x-1">
                               <span
@@ -552,7 +579,6 @@ const ChatPage = ({ user }) => {
                             </div>
                           </div>
 
-                          {/* Message content */}
                           <div
                             className={`text-xs leading-relaxed break-words ${
                               isOwnMessage ? "text-white" : "text-slate-800"
@@ -583,16 +609,15 @@ const ChatPage = ({ user }) => {
                 </span>
               </div>
               <button
-                onClick={clearReply} // This handles the 'X' functionality
+                onClick={clearReply}
                 className="text-blue-600 hover:text-blue-900 ml-2 p-1 rounded-full hover:bg-blue-100"
                 title="Clear reply"
               >
-                <X className="w-4 h-4" /> {/* The 'X' icon */}
+                <X className="w-4 h-4" />
               </button>
             </div>
           )}
 
-          {/* Message Input */}
           <div className="border-t border-slate-200 bg-white p-3 flex-shrink-0">
             <div className="flex items-center space-x-2">
               <div className="flex-1">

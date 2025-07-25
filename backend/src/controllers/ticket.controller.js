@@ -1,4 +1,5 @@
 import Ticket from "../models/Ticket.js";
+import { io } from '../server.js'; 
 
 // Create a new ticket (customer only)
 export const createTicket = async (req, res) => {
@@ -47,8 +48,6 @@ export const getTickets = async (req, res) => {
   }
 };
 
-
-
 // Update ticket status (admin/support only)
 export const updateStatus = async (req, res) => {
   const { id } = req.params;
@@ -62,9 +61,6 @@ export const updateStatus = async (req, res) => {
   }
 };
 
-// Assign ticket to support (admin only)
-// Assign ticket to support (admin only)
-// Assign ticket to support (admin only)
 export const assignTicket = async (req, res) => {
   const { role } = req.user;
 
@@ -100,40 +96,49 @@ export const assignTicket = async (req, res) => {
 };
 
 
-
-// Add a comment to a ticket
 export const addComment = async (req, res) => {
-  const { id } = req.params;
-  const { message, inReplyTo } = req.body;
-  const user = req.user.username;
-  const role = req.user.role;
+    try {
+        const { id } = req.params;
+        const { message, user, role, inReplyTo } = req.body;
 
-  try {
-    const ticket = await Ticket.findById(id);
-    if (!ticket) {
-      return res.status(404).json({ message: "Ticket not found" });
+        const ticket = await Ticket.findById(id);
+        if (!ticket) {
+            return res.status(404).json({ message: 'Ticket not found' });
+        }
+
+        const newComment = {
+            message,
+            user,
+            role,
+            createdAt: new Date(),
+            inReplyTo: inReplyTo ? (typeof inReplyTo === 'object' ? inReplyTo._id : inReplyTo) : undefined,
+        };
+
+        ticket.comments.push(newComment);
+        await ticket.save();
+
+        const savedComment = ticket.comments[ticket.comments.length - 1];
+
+        if (io) {
+            io.to(id).emit("newComment", {
+                _id: savedComment._id,
+                message: savedComment.message,
+                user: savedComment.user,
+                role: savedComment.role,
+                createdAt: savedComment.createdAt,
+                inReplyTo: savedComment.inReplyTo,
+            });
+        } else {
+            console.warn("Socket.IO instance ('io') is not available in addComment. Real-time updates will not be sent for ticket:", id);
+        }
+
+        res.status(201).json(savedComment);
+    } catch (error) {
+        console.error("Error adding comment:", error);
+        res.status(500).json({ message: "Failed to add comment", error: error.message });
     }
-
-    const newComment = {
-      user,
-      role,
-      message,
-      createdAt: new Date(),
-      inReplyTo: inReplyTo || undefined
-    };
-
-    ticket.comments.push(newComment);
-    await ticket.save();
-
-    res.status(200).json(newComment);
-  } catch (err) {
-    res.status(500).json({ message: "Failed to add comment", error: err.message });
-  }
 };
 
-
-
-// Delete a ticket (admin only)
 export const deleteTicket = async (req, res) => {
   const { role } = req.user;
   const { id } = req.params;

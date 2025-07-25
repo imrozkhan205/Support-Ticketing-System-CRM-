@@ -1,67 +1,79 @@
-// Before: import express from "express"
-import express from "express";
-import { createServer } from "http"; // Import createServer
-import { Server } from "socket.io"; // Import Socket.IO Server
+import express from 'express';
+import http from 'http';
+import { Server } from 'socket.io';
+import dotenv from 'dotenv';
+import cors from 'cors';
+import cookieParser from 'cookie-parser';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
-import dotenv from "dotenv";
-import authRoutes from "./routes/auth.route.js";
-import ticketRoutes from "./routes/ticket.route.js";
-import userRoutes from "./routes/user.route.js";
-import { connectDB } from "./libs/db.js";
-import cors from "cors";
+import authRoutes from './routes/auth.route.js';
+import ticketRoutes from './routes/ticket.route.js';
+import userRoutes from './routes/user.route.js';
+import { connectDB } from './libs/db.js';
 
 dotenv.config();
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 const app = express();
-const server = createServer(app); 
-const io = new Server(server, {
+const server = http.createServer(app);
+
+export const io = new Server(server, {
   cors: {
-    origin: "http://localhost:5173", // Your frontend URL
-    methods: ["GET", "POST"],
-    credentials: true, // Allow cookies/auth headers if needed
-  },
+    origin: "http://localhost:5173",
+    methods: ["GET", "POST"]
+  }
 });
 
-const PORT = process.env.PORT || 5000; 
-
-app.use(cors({ origin: "http://localhost:5173", credentials: true }));
-
+app.use(cors({
+  origin: "http://localhost:5173",
+  credentials: true
+}));
+app.use(cookieParser());
 app.use(express.json());
 
 app.use('/api/auth', authRoutes);
 app.use('/api/tickets', ticketRoutes);
 app.use('/api/users', userRoutes);
 
+if (process.env.NODE_ENV === "production") {
+  app.use(express.static(path.join(__dirname, "../frontend/dist")));
+  app.get("*", (req, res) => {
+    res.sendFile(path.resolve(__dirname, "../frontend", "dist", "index.html"));
+  });
+}
+
 app.get('/', (req, res) => {
-  res.send('Server is running with Socket.IO support!');
+    res.send('Server is running with Socket.IO support!');
 });
 
-
 io.on('connection', (socket) => {
-  console.log('A user connected via Socket.IO:', socket.id);
+  console.log('A user connected:', socket.id);
 
-  socket.on('joinTicket', (ticketId) => {
-    socket.join(ticketId); // Join a specific room based on ticketId
+  socket.on('joinTicketRoom', (ticketId) => {
+    socket.join(ticketId);
     console.log(`User ${socket.id} joined ticket room: ${ticketId}`);
   });
 
-  // Example: Listen for 'leaveTicket' event
-  socket.on('leaveTicket', (ticketId) => {
+  socket.on('leaveTicketRoom', (ticketId) => {
     socket.leave(ticketId);
     console.log(`User ${socket.id} left ticket room: ${ticketId}`);
   });
 
-  socket.on('newChatMessage', (messageData) => {
-    console.log(`New message for ticket ${messageData.ticketId}:`, messageData.message);
-    io.to(messageData.ticketId).emit('receiveMessage', messageData);
+  socket.on('disconnect', (reason) => {
+    console.log('User disconnected:', socket.id, 'Reason:', reason);
   });
 
-  socket.on('disconnect', () => {
-    console.log('A user disconnected from Socket.IO:', socket.id);
+  socket.on('error', (err) => {
+    console.error('Socket error:', err);
   });
 });
 
+connectDB();
 
-connectDB(); // Connect to your database
-
-server.listen(PORT, () => console.log(`Server is running on PORT ${PORT}`));
+const PORT = process.env.PORT || 5000;
+server.listen(PORT, () => {
+  console.log(`Server is running on Port: ${PORT}`);
+});
