@@ -1,2 +1,4 @@
 /.env
 node_modules
+src/controllers/auth.controller.js
+src/libs/users.js

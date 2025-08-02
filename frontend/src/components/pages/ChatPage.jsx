@@ -244,14 +244,6 @@ const ChatPage = ({ user }) => {
         `/tickets/${selectedTicket._id}/comments`,
         payload
       );
-
-      // On successful API response, the `newComment` socket event from the server
-      // should handle the actual update and replace the optimistic comment.
-      // We don't need to manually update `selectedTicket` here based on `res.data`
-      // if the server is broadcasting the new comment via Socket.IO.
-      // However, it's good practice to ensure the optimistic one is cleaned up
-      // if for some reason the socket event is missed or delayed.
-
       setSelectedTicket((prev) => {
         const updatedComments = (prev.comments || []).map((comment) =>
           comment._id === optimisticComment._id
