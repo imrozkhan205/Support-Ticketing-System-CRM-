@@ -1,5 +1,5 @@
 import Ticket from "../models/Ticket.js";
-import { io } from '../server.js'; 
+import { io } from "../../server.js"; // Import the io instance from server.js
 
 // Create a new ticket (customer only)
 export const createTicket = async (req, res) => {

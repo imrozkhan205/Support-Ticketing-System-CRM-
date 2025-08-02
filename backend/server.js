@@ -7,10 +7,10 @@ import cookieParser from 'cookie-parser';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
-import authRoutes from './routes/auth.route.js';
-import ticketRoutes from './routes/ticket.route.js';
-import userRoutes from './routes/user.route.js';
-import { connectDB } from './libs/db.js';
+import authRoutes from './src/routes/auth.route.js';
+import ticketRoutes from './src/routes/ticket.route.js';
+import userRoutes from './src/routes/user.route.js';
+import { connectDB } from './src/libs/db.js';
 
 dotenv.config();
 
@@ -20,17 +20,29 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const server = http.createServer(app);
 
+// ✅ Updated CORS configuration for both dev and production
+const allowedOrigins = process.env.NODE_ENV === 'production' 
+  ? [
+      'https://sts.kaizennic.com',
+      'https://www.sts.kaizennic.com'  // if you use www
+    ]
+  : [
+      'http://localhost:5173',    // Vite dev server
+      'http://localhost:3000',    // if you use different port
+      'http://127.0.0.1:5173'     // alternative localhost
+    ];
+
+app.use(cors({
+  origin: allowedOrigins,
+  credentials: true
+}));
+
 export const io = new Server(server, {
   cors: {
-    origin: "http://localhost:5173",
+    origin: allowedOrigins,
     methods: ["GET", "POST"]
   }
 });
-
-app.use(cors({
-  origin: "http://localhost:5173",
-  credentials: true
-}));
 app.use(cookieParser());
 app.use(express.json());
 
