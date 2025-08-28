@@ -14,7 +14,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { axiosInstance } from "../../lib/axios";
 import io from "socket.io-client";
 
-const SOCKET_SERVER_URL = import.meta.env.VITE_SOCKET_URL || "http://localhost:5000";
+const SOCKET_SERVER_URL = import.meta.env.VITE_SOCKET_URL || "https://sts-a6ed.onrender.com/";
 
 
 const ChatPage = ({ user }) => {
