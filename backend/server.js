@@ -23,8 +23,8 @@ const server = http.createServer(app);
 // ✅ Updated CORS configuration for both dev and production
 const allowedOrigins = process.env.NODE_ENV === 'production' 
   ? [
-      'https://sts.kaizennic.com',
-      'https://www.sts.kaizennic.com'  // if you use www
+      'https://support-ticketing-system-crm.vercel.app',  // ✅ Your Vercel frontend URL
+      'https://www.support-ticketing-system-crm.vercel.app'  // ✅ Optional: if you use www
     ]
   : [
       'http://localhost:5173',    // Vite dev server
@@ -40,9 +40,11 @@ app.use(cors({
 export const io = new Server(server, {
   cors: {
     origin: allowedOrigins,
-    methods: ["GET", "POST"]
+    methods: ["GET", "POST"],
+    credentials: true  // ✅ Added credentials for Socket.IO
   }
 });
+
 app.use(cookieParser());
 app.use(express.json());
 
