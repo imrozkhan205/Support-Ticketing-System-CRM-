@@ -89,28 +89,9 @@ Live Demo 👉 [Support Ticketing System](https://support-ticketing-system-crm.v
 
 ## 📸 Screenshots
 
-### Dashboard
-
-![Dashboard](./screenshots/dashboard.png)
-
-### Supports Management
-
-![Supports](./screenshots/supports.png)
-
-### Customers
-
-![Customers](./screenshots/customers.png)
-
-### Tickets
-
-![Tickets](./screenshots/tickets.png)
-
-### Chat
-
-![Chat](./screenshots/chat.png)
-
----
-
----
-
-👉 Would you like me to **include the screenshots you shared inside the repo and reference them** in the README (like `./screenshots/dashboard.png`), or just leave the README text-only for now?
+<img width="1919" height="902" alt="Screenshot 2025-08-29 202444" src="https://github.com/user-attachments/assets/944491eb-0ec2-4b36-a34f-0f96293f9b63" />
+<img width="1919" height="906" alt="Screenshot 2025-08-29 202503" src="https://github.com/user-attachments/assets/e33d26da-231c-40ef-8a5d-379263dca341" />
+<img width="1919" height="962" alt="Screenshot 2025-08-29 202219" src="https://github.com/user-attachments/assets/07867873-74bb-4d8e-9949-feee6d02ebc9" />
+<img width="1918" height="908" alt="Screenshot 2025-08-29 202235" src="https://github.com/user-attachments/assets/30a115dd-06c6-45cb-8423-2f65be409821" />
+<img width="1918" height="894" alt="Screenshot 2025-08-29 202415" src="https://github.com/user-attachments/assets/ca19358e-4b1d-4288-9570-abe773186f63" />
+<img width="1919" height="894" alt="Screenshot 2025-08-29 202428" src="https://github.com/user-attachments/assets/82b3d5ff-3eba-4247-9953-804bfc9a770e" />
