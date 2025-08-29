@@ -25,4 +25,5 @@ dist-ssr
 
 dist.zip
 .env.production
+.env
 .env.development

@@ -1,22 +1,26 @@
 import React, { useEffect, useState } from 'react';
 import { axiosInstance } from '../../lib/axios';
-import { User, ShieldCheck, Plus, X, Trash2 } from 'lucide-react';
+import { User, ShieldCheck, Plus, X, Trash2, Loader2 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 
 const Supports = () => {
   const [supports, setSupports] = useState([]);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(false); // for form
+  const [fetching, setFetching] = useState(true); // for fetching list
   const [showForm, setShowForm] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(null);
 
   const fetchSupports = async () => {
+    setFetching(true);
     try {
       const res = await axiosInstance.get('/users?role=support');
       setSupports(res.data);
     } catch (err) {
       console.error('Failed to fetch supports:', err);
+    } finally {
+      setFetching(false);
     }
   };
 
@@ -62,7 +66,7 @@ const Supports = () => {
 
       <button
         onClick={() => setShowForm(true)}
-         className="fixed bottom-6 right-6 bg-green-600 text-white p-3 rounded-full shadow-lg hover:bg-green-700 z-50"
+        className="fixed bottom-6 right-6 bg-green-600 text-white p-3 rounded-full shadow-lg hover:bg-green-700 z-50"
       >
         <Plus size={24} />
       </button>
@@ -132,29 +136,36 @@ const Supports = () => {
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
-        {supports.map((user) => (
-          <div
-            key={user._id}
-            className="bg-gray-50 rounded-lg shadow p-4 flex flex-col gap-2 border"
-          >
-            <div className="flex items-center gap-2 text-gray-800">
-              <User size={16} /> {user.username}
+      {/* Loading spinner */}
+      {fetching ? (
+        <div className="flex justify-center items-center mt-10">
+          <Loader2 className="animate-spin text-green-600" size={32} />
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
+          {supports.map((user) => (
+            <div
+              key={user._id}
+              className="bg-gray-50 rounded-lg shadow p-4 flex flex-col gap-2 border"
+            >
+              <div className="flex items-center gap-2 text-gray-800">
+                <User size={16} /> {user.username}
+              </div>
+              <div className="flex items-center gap-2 text-gray-500 justify-between">
+                <span className="flex items-center gap-2">
+                  <ShieldCheck size={16} /> {user.role}
+                </span>
+                <button
+                  className="text-red-500 hover:text-red-700"
+                  onClick={() => setConfirmDelete(user._id)}
+                >
+                  <Trash2 size={18} />
+                </button>
+              </div>
             </div>
-            <div className="flex items-center gap-2 text-gray-500 justify-between">
-              <span className="flex items-center gap-2">
-                <ShieldCheck size={16} /> {user.role}
-              </span>
-              <button
-                className="text-red-500 hover:text-red-700"
-                onClick={() => setConfirmDelete(user._id)}
-              >
-                <Trash2 size={18} />
-              </button>
-            </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 };

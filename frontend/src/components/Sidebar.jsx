@@ -1,10 +1,10 @@
 import React from "react";
 import { NavLink } from "react-router-dom";
-import { LayoutDashboard, Users, Ticket, ShieldCheck } from "lucide-react";
+import { LayoutDashboard, Users, Ticket, ShieldCheck, IndentDecreaseIcon, ArrowBigUp, BarChart } from "lucide-react";
 
 const Sidebar = ({ role }) => {
   const commonLinks = [
-    { to: "/dashboard", icon: <LayoutDashboard size={20} />, label: "Dashboard" },
+    { to: "/dashboard", icon: <BarChart size={20} />, label: "Dashboard" },
   ];
 
   // Role-specific links

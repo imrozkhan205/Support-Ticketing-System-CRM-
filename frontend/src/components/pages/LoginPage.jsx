@@ -48,6 +48,7 @@ const LoginPage = ({ setAuthUser }) => {
             <label htmlFor="username" className="block text-gray-700 text-sm font-semibold mb-2">
               Username
             </label>
+            <div className='text-[12px] opacity-50 mb-2'>Demo username: demo</div>
             <input
               type="text"
               id="username"
@@ -61,8 +62,9 @@ const LoginPage = ({ setAuthUser }) => {
 
           <div className="mb-6">
             <label htmlFor="password" className="block text-gray-700 text-sm font-semibold mb-2">
-              Password
+              Password  
             </label>
+            <div className='text-[12px] opacity-50 mb-2'>Demo password: demo</div>
             <input
               type="password"
               id="password"
